@@ -37,7 +37,6 @@ import org.sonar.api.utils.log.Logger;
 import org.sonar.api.utils.log.Loggers;
 import org.sonar.cxx.sensors.utils.CxxIssuesReportSensor;
 import org.sonar.cxx.sensors.utils.InvalidReportException;
-import org.sonar.cxx.sensors.utils.ReportException;
 import org.sonar.cxx.utils.CxxReportIssue;
 
 /**
@@ -54,8 +53,9 @@ public class CxxClangSASensor extends CxxIssuesReportSensor {
     return Collections.unmodifiableList(Arrays.asList(
       PropertyDefinition.builder(REPORT_PATH_KEY)
         .name("Clang Static Analyzer report(s)")
-        .description("Path to Clang Static Analyzer reports, relative to projects root. If neccessary, "
-                       + "<a href='https://ant.apache.org/manual/dirtasks.html'>Ant-style wildcards</a> are at your service.")
+        .description(
+          "Path to Clang Static Analyzer reports, relative to projects root. If neccessary, "
+          + "<a href='https://ant.apache.org/manual/dirtasks.html'>Ant-style wildcards</a> are at your service.")
         .category("External Analyzers")
         .subCategory("Clang Static Analyzer")
         .onQualifiers(Qualifiers.PROJECT)
@@ -81,7 +81,9 @@ public class CxxClangSASensor extends CxxIssuesReportSensor {
   }
 
   private void addFlowToIssue(final NSDictionary diagnostic, final NSObject[] sourceFiles, final CxxReportIssue issue) {
-    NSObject[] path = ((NSArray) require(diagnostic.objectForKey("path"), "Missing mandatory entry 'path'")).getArray();
+    NSObject[] path = ((NSArray) require(
+      diagnostic.objectForKey("path"), "Missing mandatory entry 'path'")
+      ).getArray();
     for (var pathObject : path) {
       var pathElement = new PathElement(pathObject);
       if (pathElement.getKind() != PathElementKind.EVENT) {
@@ -89,12 +91,14 @@ public class CxxClangSASensor extends CxxIssuesReportSensor {
       }
 
       var event = new PathEvent(pathObject, sourceFiles);
-      issue.addFlowElement(event.getFilePath(), event.getLineNumber(), event.getExtendedMessage());
+      issue.addFlowElement(
+        event.getFilePath(), event.getLineNumber(), event.getColumnNumber(), event.getExtendedMessage()
+      );
     }
   }
 
   @Override
-  protected void processReport(File report) throws ReportException {
+  protected void processReport(File report)  {
     LOG.debug("Processing 'Clang Static Analyzer' report '{}''", report.getName());
 
     try {
@@ -118,6 +122,8 @@ public class CxxClangSASensor extends CxxIssuesReportSensor {
                                                        "Missing mandatory entry 'diagnostics/location'");
         int line = ((NSNumber) require(location.get("line"),
                                        "Missing mandatory entry 'diagnostics/location/line'")).intValue();
+        int column = ((NSNumber) require(location.get("col"),
+                                       "Missing mandatory entry 'diagnostics/location/col'")).intValue();
         int fileIndex = ((NSNumber) require(location.get("file"),
                                             "Missing mandatory entry 'diagnostics/location/file'")).intValue();
 
@@ -126,7 +132,10 @@ public class CxxClangSASensor extends CxxIssuesReportSensor {
         }
         String filePath = ((NSString) sourceFiles[fileIndex]).getContent();
 
-        var issue = new CxxReportIssue(checkerName, filePath, Integer.toString(line), description);
+        var issue = new CxxReportIssue(
+          checkerName, filePath,
+          Integer.toString(line), Integer.toString(column),
+          description);
 
         addFlowToIssue(diag, sourceFiles, issue);
 
@@ -194,6 +203,11 @@ public class CxxClangSASensor extends CxxIssuesReportSensor {
     public String getLineNumber() {
       int lineNumber = ((NSNumber) require(getLocation().get("line"), "Missing mandatory entry 'line'")).intValue();
       return Integer.toString(lineNumber);
+    }
+
+    public String getColumnNumber() {
+      int columnNumber = ((NSNumber) require(getLocation().get("col"), "Missing mandatory entry 'col'")).intValue();
+      return Integer.toString(columnNumber);
     }
 
     public String getFilePath() {

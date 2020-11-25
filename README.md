@@ -1,6 +1,7 @@
 |     |     |     |
 | --- | --- | --- |
 | **SonarCloud**<br>(Technical Debt analysis) | [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=org.sonarsource.sonarqube-plugins.cxx%3Acxx&metric=alert_status)](https://sonarcloud.io/dashboard?id=org.sonarsource.sonarqube-plugins.cxx%3Acxx) | ![Coverage](https://sonarcloud.io/api/project_badges/measure?project=org.sonarsource.sonarqube-plugins.cxx%3Acxx&metric=coverage) |
+| **DeepCode**<br>(real-time AI powered semantic code analysis) | [![deepcode](https://www.deepcode.ai/api/gh/badge?key=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwbGF0Zm9ybTEiOiJnaCIsIm93bmVyMSI6IlNvbmFyT3BlbkNvbW11bml0eSIsInJlcG8xIjoic29uYXItY3h4IiwiaW5jbHVkZUxpbnQiOmZhbHNlLCJhdXRob3JJZCI6MTU1ODMsImlhdCI6MTYwMTI4MjcwOH0.Wz0G-HIoHfLfP1SjzxUnbyA598JfjKkQTsBqGG4Kleo)](https://www.deepcode.ai/app/gh/SonarOpenCommunity/sonar-cxx/_/dashboard?utm_content=gh%2FSonarOpenCommunity%2Fsonar-cxx) |
 | **Travis CI**<br>(Linux Build and Integration Tests) | [![Build Status](https://travis-ci.org/SonarOpenCommunity/sonar-cxx.svg?branch=master)](https://travis-ci.org/SonarOpenCommunity/sonar-cxx) |   |
 | **AppVeyor CI**<br>(Windows Build and Deployment) | [![Build status](https://ci.appveyor.com/api/projects/status/f6p12h9n59w01770/branch/master?svg=true)](https://ci.appveyor.com/project/SonarOpenCommunity/sonar-cxx/branch/master) | [Download latest snapshot](https://ci.appveyor.com/project/SonarOpenCommunity/sonar-cxx/branch/master/artifacts) |
 
@@ -42,9 +43,9 @@ Sensors for **static and dynamic code analysis**:
 
 **Coverage** sensors for:
 * Visual Studio coverage reports
-* Gcov / gcovr coverage reports
 * Bullseye coverage reports (http://www.bullseye.com/)
 * Cobertura coverage reports (http://cobertura.github.io/cobertura/)
+   * gcov / gcovr coverage reports --xml https://gcovr.com/en/stable/guide.html
    * OpenCppCoverage --export_type=cobertura (https://github.com/OpenCppCoverage/OpenCppCoverage/)
 * Testwell CTC++ coverage reports (https://www.verifysoft.com/en_ctcpp.html)
 

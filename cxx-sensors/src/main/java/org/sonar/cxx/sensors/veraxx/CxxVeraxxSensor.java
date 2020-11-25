@@ -34,7 +34,6 @@ import org.sonar.api.utils.log.Loggers;
 import org.sonar.cxx.sensors.utils.CxxIssuesReportSensor;
 import org.sonar.cxx.sensors.utils.EmptyReportException;
 import org.sonar.cxx.sensors.utils.InvalidReportException;
-import org.sonar.cxx.sensors.utils.ReportException;
 import org.sonar.cxx.sensors.utils.StaxParser;
 import org.sonar.cxx.utils.CxxReportIssue;
 
@@ -70,7 +69,7 @@ public class CxxVeraxxSensor extends CxxIssuesReportSensor {
   }
 
   @Override
-  protected void processReport(File report) throws ReportException {
+  protected void processReport(File report) {
     LOG.debug("Processing 'Vera++' report '{}'", report.getName());
 
     try {
@@ -92,7 +91,7 @@ public class CxxVeraxxSensor extends CxxIssuesReportSensor {
               String message = errorCursor.getAttrValue("message");
               String source = errorCursor.getAttrValue("source");
 
-              var issue = new CxxReportIssue(source, name, line, message);
+              var issue = new CxxReportIssue(source, name, line, null, message);
               saveUniqueViolation(issue);
             } else {
               LOG.debug("Error in file '{}', with message '{}'",

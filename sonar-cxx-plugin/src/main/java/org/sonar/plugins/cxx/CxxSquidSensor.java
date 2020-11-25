@@ -21,9 +21,7 @@ package org.sonar.plugins.cxx;
 
 import com.sonar.sslr.api.Grammar;
 import java.io.File;
-import java.io.IOException;
 import java.io.Serializable;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -45,8 +43,6 @@ import org.sonar.api.batch.sensor.highlighting.TypeOfText;
 import org.sonar.api.batch.sensor.issue.NewIssue;
 import org.sonar.api.batch.sensor.issue.NewIssueLocation;
 import org.sonar.api.config.PropertyDefinition;
-import org.sonar.api.internal.google.common.base.Splitter;
-import org.sonar.api.internal.google.common.collect.Iterables;
 import org.sonar.api.issue.NoSonarFilter;
 import org.sonar.api.measures.CoreMetrics;
 import org.sonar.api.measures.FileLinesContext;
@@ -59,13 +55,14 @@ import org.sonar.api.utils.log.Logger;
 import org.sonar.api.utils.log.Loggers;
 import org.sonar.cxx.CxxAstScanner;
 import org.sonar.cxx.CxxMetrics;
-import org.sonar.cxx.CxxSquidConfiguration;
 import org.sonar.cxx.api.CxxMetric;
 import org.sonar.cxx.checks.CheckList;
+import org.sonar.cxx.config.CxxSquidConfiguration;
+import org.sonar.cxx.config.MsBuild;
 import org.sonar.cxx.sensors.utils.CxxUtils;
-import org.sonar.cxx.sensors.utils.JsonCompilationDatabase;
 import org.sonar.cxx.visitors.CxxCpdVisitor;
 import org.sonar.cxx.visitors.CxxHighlighterVisitor;
+import org.sonar.cxx.visitors.CxxPublicApiVisitor;
 import org.sonar.cxx.visitors.MultiLocatitionSquidCheck;
 import org.sonar.squidbridge.AstScanner;
 import org.sonar.squidbridge.SquidAstVisitor;
@@ -81,25 +78,8 @@ public class CxxSquidSensor implements ProjectSensor {
   public static final String DEFINES_KEY = "sonar.cxx.defines";
   public static final String INCLUDE_DIRECTORIES_KEY = "sonar.cxx.includeDirectories";
   public static final String ERROR_RECOVERY_KEY = "sonar.cxx.errorRecoveryEnabled";
-  public static final String FORCE_INCLUDE_FILES_KEY = "sonar.cxx.forceIncludes";
+  public static final String FORCE_INCLUDES_KEY = "sonar.cxx.forceIncludes";
   public static final String JSON_COMPILATION_DATABASE_KEY = "sonar.cxx.jsonCompilationDatabase";
-
-  /**
-   * the following settings are in use by the feature to read configuration settings from the VC compiler report
-   */
-  public static final String REPORT_PATH_KEY = "sonar.cxx.msbuild.reportPaths";
-  public static final String REPORT_CHARSET_DEF = "sonar.cxx.msbuild.charset";
-  public static final String DEFAULT_CHARSET_DEF = StandardCharsets.UTF_8.name();
-
-  /**
-   * Key of the file suffix parameter
-   */
-  public static final String API_FILE_SUFFIXES_KEY = "sonar.cxx.api.file.suffixes";
-
-  /**
-   * Default API files knows suffixes
-   */
-  public static final String API_DEFAULT_FILE_SUFFIXES = ".hxx,.hpp,.hh,.h";
 
   public static final String FUNCTION_COMPLEXITY_THRESHOLD_KEY = "sonar.cxx.funccomplexity.threshold";
   public static final String FUNCTION_SIZE_THRESHOLD_KEY = "sonar.cxx.funcsize.threshold";
@@ -107,7 +87,9 @@ public class CxxSquidSensor implements ProjectSensor {
   public static final String CPD_IGNORE_LITERALS_KEY = "sonar.cxx.cpd.ignoreLiterals";
   public static final String CPD_IGNORE_IDENTIFIERS_KEY = "sonar.cxx.cpd.ignoreIdentifiers";
   private static final String USE_ANT_STYLE_WILDCARDS
-                                = " Use <a href='https://ant.apache.org/manual/dirtasks.html'>Ant-style wildcards</a> if neccessary.";
+                                = " Use <a href='"
+                                    + "https://ant.apache.org/manual/dirtasks.html"
+                                    + "'>Ant-style wildcards</a> if neccessary.";
 
   private static final Logger LOG = Loggers.get(CxxSquidSensor.class);
 
@@ -151,7 +133,7 @@ public class CxxSquidSensor implements ProjectSensor {
         .subCategory("(2) Defines & Includes")
         .onQualifiers(Qualifiers.PROJECT)
         .build(),
-      PropertyDefinition.builder(FORCE_INCLUDE_FILES_KEY)
+      PropertyDefinition.builder(FORCE_INCLUDES_KEY)
         .multiValues(true)
         .category("CXX")
         .subCategory("(2) Defines & Includes")
@@ -174,15 +156,15 @@ public class CxxSquidSensor implements ProjectSensor {
         .defaultValue(Boolean.TRUE.toString())
         .name("Parse error recovery")
         .description("Defines mode for error handling of report files and parsing errors. `False' (strict) breaks after"
-                       + " an error or 'True' (tolerant=default) continues. See <a href='https://github.com/SonarOpenCommunity/"
-                     + "sonar-cxx/wiki/Supported-configuration-properties#sonarcxxerrorrecoveryenabled'>"
-                       + "sonar.cxx.errorRecoveryEnabled</a> for a complete description.")
+                       + " an error or 'True' (tolerant=default) continues. See <a href='"
+                       + "https://github.com/SonarOpenCommunity/sonar-cxx/wiki/Supported-configuration-properties#sonarcxxerrorrecoveryenabled"
+                     + "'>sonar.cxx.errorRecoveryEnabled</a> for a complete description.")
         .category("CXX")
         .subCategory("(1) General")
         .onQualifiers(Qualifiers.PROJECT)
         .type(PropertyType.BOOLEAN)
         .build(),
-      PropertyDefinition.builder(REPORT_PATH_KEY)
+      PropertyDefinition.builder(MsBuild.REPORT_PATH_KEY)
         .name("Path(s) to MSBuild log(s)")
         .description("Extract includes, defines and compiler options from the build log. This works only"
                        + " if the produced log during compilation adds enough information (MSBuild verbosity set to"
@@ -193,8 +175,8 @@ public class CxxSquidSensor implements ProjectSensor {
         .onQualifiers(Qualifiers.PROJECT)
         .multiValues(true)
         .build(),
-      PropertyDefinition.builder(REPORT_CHARSET_DEF)
-        .defaultValue(DEFAULT_CHARSET_DEF)
+      PropertyDefinition.builder(MsBuild.REPORT_CHARSET_DEF)
+        .defaultValue(MsBuild.DEFAULT_CHARSET_DEF)
         .name("MSBuild log encoding")
         .description("The encoding to use when reading a MSBuild log. Leave empty to use default UTF-8.")
         .category("CXX")
@@ -209,8 +191,8 @@ public class CxxSquidSensor implements ProjectSensor {
                        + "used for source files.")
         .onQualifiers(Qualifiers.PROJECT)
         .build(),
-      PropertyDefinition.builder(API_FILE_SUFFIXES_KEY)
-        .defaultValue(API_DEFAULT_FILE_SUFFIXES)
+      PropertyDefinition.builder(CxxPublicApiVisitor.API_FILE_SUFFIXES_KEY)
+        .defaultValue(CxxPublicApiVisitor.API_DEFAULT_FILE_SUFFIXES)
         .name("Pulic API file suffixes")
         .multiValues(true)
         .description("Comma-separated list of suffixes for files that should be searched for API comments."
@@ -240,8 +222,9 @@ public class CxxSquidSensor implements ProjectSensor {
       PropertyDefinition.builder(CPD_IGNORE_LITERALS_KEY)
         .defaultValue(Boolean.FALSE.toString())
         .name("Ignores literal value differences when evaluating a duplicate block")
-        .description("Ignores literal (numbers, characters and strings) value differences when evaluating a duplicate "
-                       + "block. This means that e.g. foo=42; and foo=43; will be seen as equivalent. Default is 'False'.")
+        .description(
+          "Ignores literal (numbers, characters and strings) value differences when evaluating a duplicate "
+            + "block. This means that e.g. foo=42; and foo=43; will be seen as equivalent. Default is 'False'.")
         .category("CXX")
         .subCategory("(4) Duplications")
         .onQualifiers(Qualifiers.PROJECT)
@@ -300,56 +283,46 @@ public class CxxSquidSensor implements ProjectSensor {
     return getClass().getSimpleName();
   }
 
-  private String[] getStringLinesOption(String key) {
-    Pattern EOL_PATTERN = Pattern.compile("\\R");
+  private String[] stripValue(String key, String regex) {
     Optional<String> value = context.config().get(key);
     if (value.isPresent()) {
-      return EOL_PATTERN.split(value.get(), -1);
+      final Pattern PATTERN = Pattern.compile(regex);
+      return PATTERN.split(value.get(), -1);
     }
     return new String[0];
   }
 
   private CxxSquidConfiguration createConfiguration() {
-    var squidConfig = new CxxSquidConfiguration(context.fileSystem().encoding());
-    squidConfig.setBaseDir(context.fileSystem().baseDir().getAbsolutePath());
-    String[] lines = getStringLinesOption(DEFINES_KEY);
-    squidConfig.setDefines(lines);
-    squidConfig.setIncludeDirectories(context.config().getStringArray(INCLUDE_DIRECTORIES_KEY));
-    squidConfig.setErrorRecoveryEnabled(context.config().getBoolean(ERROR_RECOVERY_KEY).orElse(Boolean.FALSE));
-    squidConfig.setForceIncludeFiles(context.config().getStringArray(FORCE_INCLUDE_FILES_KEY));
+    var squidConfig = new CxxSquidConfiguration(context.fileSystem().baseDir().getAbsolutePath(),
+                                            context.fileSystem().encoding());
 
-    String[] suffixes = Arrays.stream(context.config().getStringArray(API_FILE_SUFFIXES_KEY))
-      .filter(s -> s != null && !s.trim().isEmpty()).toArray(String[]::new);
-    if (suffixes.length == 0) {
-      suffixes = Iterables.toArray(Splitter.on(',').split(API_DEFAULT_FILE_SUFFIXES), String.class);
-    }
-    squidConfig.setPublicApiFileSuffixes(suffixes);
+    squidConfig.add(CxxSquidConfiguration.SONAR_PROJECT_PROPERTIES, CxxSquidConfiguration.ERROR_RECOVERY_ENABLED,
+                    context.config().get(ERROR_RECOVERY_KEY));
+    squidConfig.add(CxxSquidConfiguration.SONAR_PROJECT_PROPERTIES, CxxSquidConfiguration.CPD_IGNORE_LITERALS,
+                    context.config().get(CPD_IGNORE_LITERALS_KEY));
+    squidConfig.add(CxxSquidConfiguration.SONAR_PROJECT_PROPERTIES, CxxSquidConfiguration.CPD_IGNORE_IDENTIFIERS,
+                    context.config().get(CPD_IGNORE_IDENTIFIERS_KEY));
+    squidConfig.add(CxxSquidConfiguration.SONAR_PROJECT_PROPERTIES, CxxSquidConfiguration.FUNCTION_COMPLEXITY_THRESHOLD,
+                    context.config().get(FUNCTION_COMPLEXITY_THRESHOLD_KEY));
+    squidConfig.add(CxxSquidConfiguration.SONAR_PROJECT_PROPERTIES, CxxSquidConfiguration.FUNCTION_SIZE_THRESHOLD,
+                    context.config().get(FUNCTION_SIZE_THRESHOLD_KEY));
+    squidConfig.add(CxxSquidConfiguration.SONAR_PROJECT_PROPERTIES, CxxSquidConfiguration.API_FILE_SUFFIXES,
+                    context.config().getStringArray(CxxPublicApiVisitor.API_FILE_SUFFIXES_KEY));
+    squidConfig.add(CxxSquidConfiguration.SONAR_PROJECT_PROPERTIES, CxxSquidConfiguration.JSON_COMPILATION_DATABASE,
+                    context.config().get(JSON_COMPILATION_DATABASE_KEY));
 
-    squidConfig.setCpdIgnoreLiteral(context.config().getBoolean(CPD_IGNORE_LITERALS_KEY).orElse(Boolean.FALSE));
-    squidConfig.setCpdIgnoreIdentifier(context.config().getBoolean(CPD_IGNORE_IDENTIFIERS_KEY).orElse(Boolean.FALSE));
+    squidConfig.add(CxxSquidConfiguration.SONAR_PROJECT_PROPERTIES, CxxSquidConfiguration.DEFINES,
+                    stripValue(DEFINES_KEY, "\\R"));
+    squidConfig.add(CxxSquidConfiguration.SONAR_PROJECT_PROPERTIES, CxxSquidConfiguration.FORCE_INCLUDES,
+                    context.config().getStringArray(FORCE_INCLUDES_KEY));
+    squidConfig.add(CxxSquidConfiguration.SONAR_PROJECT_PROPERTIES, CxxSquidConfiguration.INCLUDE_DIRECTORIES,
+                    context.config().getStringArray(INCLUDE_DIRECTORIES_KEY));
 
-    squidConfig.setFunctionComplexityThreshold(context.config().getInt(FUNCTION_COMPLEXITY_THRESHOLD_KEY).orElse(10));
-    squidConfig.setFunctionSizeThreshold(context.config().getInt(FUNCTION_SIZE_THRESHOLD_KEY).orElse(20));
+    squidConfig.readJsonCompilationDb();
 
-    squidConfig.setJsonCompilationDatabaseFile(context.config().get(JSON_COMPILATION_DATABASE_KEY)
-      .orElse(null));
-
-    if (squidConfig.getJsonCompilationDatabaseFile() != null) {
-      try {
-        JsonCompilationDatabase.parse(squidConfig, new File(squidConfig.getJsonCompilationDatabaseFile()));
-      } catch (IOException e) {
-        LOG.debug("Cannot access Json DB File: {}", e);
-      }
-    }
-
-    final String[] buildLogPaths = context.config().getStringArray(REPORT_PATH_KEY);
-    final boolean buildLogPathsDefined = buildLogPaths != null && buildLogPaths.length != 0;
-    if (buildLogPathsDefined) {
-      List<File> reports = CxxUtils.getFiles(context, REPORT_PATH_KEY);
-      squidConfig.setCompilationPropertiesWithBuildLog(reports, "Visual C++",
-                                                       context.config().get(REPORT_CHARSET_DEF).orElse(
-                                                         DEFAULT_CHARSET_DEF));
-    }
+    List<File> logFiles = CxxUtils.getFiles(context, MsBuild.REPORT_PATH_KEY);
+    squidConfig.readMsBuildFiles(logFiles, context.config().get(MsBuild.REPORT_CHARSET_DEF)
+                                 .orElse(MsBuild.DEFAULT_CHARSET_DEF));
 
     return squidConfig;
   }
@@ -416,16 +389,17 @@ public class CxxSquidSensor implements ProjectSensor {
           line = message.getLine();
         }
 
-        NewIssue newIssue = context.newIssue().forRule(
-          RuleKey.of(CheckList.REPOSITORY_KEY,
-                     checks.ruleKey(
-                       (SquidAstVisitor<Grammar>) message.getCheck())
-                       .rule()));
-        NewIssueLocation location = newIssue.newLocation().on(inputFile).at(inputFile.selectLine(line))
-          .message(message.getText(Locale.ENGLISH));
+        RuleKey ruleKey = checks.ruleKey((SquidAstVisitor<Grammar>) message.getCheck());
+        if (ruleKey != null) {
+          NewIssue newIssue = context.newIssue().forRule(RuleKey.of(CheckList.REPOSITORY_KEY, ruleKey.rule()));
+          NewIssueLocation location = newIssue.newLocation().on(inputFile).at(inputFile.selectLine(line))
+            .message(message.getText(Locale.ENGLISH));
 
-        newIssue.at(location);
-        newIssue.save();
+          newIssue.at(location);
+          newIssue.save();
+        } else {
+          LOG.debug("Unknown rule key: %s", message);
+        }
       }
     }
 
@@ -491,7 +465,7 @@ public class CxxSquidSensor implements ProjectSensor {
       try {
         newHighlighting.highlight(item.startLine, item.startLineOffset, item.endLine, item.endLineOffset,
                                   TypeOfText.forCssClass(item.typeOfText));
-      } catch (IllegalArgumentException e) {
+      } catch (IllegalArgumentException | IllegalStateException e) {
         // ignore highlight errors: parsing errors could lead to wrong location data
         LOG.debug("Highlighting error in file '{}' at start:{}:{} end:{}:{}", inputFile.filename(),
                   item.startLine, item.startLineOffset, item.endLine, item.endLineOffset);

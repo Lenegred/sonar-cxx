@@ -33,7 +33,6 @@ import org.sonar.api.utils.log.Logger;
 import org.sonar.api.utils.log.Loggers;
 import org.sonar.cxx.sensors.utils.CxxIssuesReportSensor;
 import org.sonar.cxx.sensors.utils.InvalidReportException;
-import org.sonar.cxx.sensors.utils.ReportException;
 import org.sonar.cxx.utils.CxxReportIssue;
 
 /**
@@ -92,19 +91,19 @@ public class CxxValgrindSensor extends CxxIssuesReportSensor {
 
     String errorMsg = createErrorMsg(error, stack, stackNr);
     // set the last own frame as a primary location
-    var issue = new CxxReportIssue(error.getKind(), lastOwnFrame.getPath(), lastOwnFrame.getLine(), errorMsg);
+    var issue = new CxxReportIssue(error.getKind(), lastOwnFrame.getPath(), lastOwnFrame.getLine(), null, errorMsg);
     // add all frames as secondary locations
     for (var frame : stack.getFrames()) {
       boolean frameIsInProject = frameIsInProject(frame);
       String mappedPath = (frameIsInProject) ? frame.getPath() : lastOwnFrame.getPath();
       String mappedLine = (frameIsInProject) ? frame.getLine() : lastOwnFrame.getLine();
-      issue.addLocation(mappedPath, mappedLine, frame.toString());
+      issue.addLocation(mappedPath, mappedLine, null, frame.toString());
     }
     return issue;
   }
 
   @Override
-  protected void processReport(File report) throws ReportException {
+  protected void processReport(File report) {
     LOG.debug("Processing 'Valgrind' report '{}'", report.getName());
 
     try {

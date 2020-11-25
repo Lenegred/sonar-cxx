@@ -33,7 +33,7 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import org.sonar.api.utils.log.Logger;
 import org.sonar.api.utils.log.Loggers;
-import org.sonar.cxx.CxxSquidConfiguration;
+import org.sonar.cxx.config.CxxSquidConfiguration;
 import org.sonar.cxx.api.CppPunctuator;
 import org.sonar.cxx.api.CxxTokenType;
 
@@ -217,7 +217,8 @@ public final class ExpressionEvaluator {
       final String id = exprAst.getTokenValue();
       if (macroEvaluationStack.contains(id)) {
         LOG.debug("ExpressionEvaluator: self-referential macro '{}' detected;"
-                    + " assume true; evaluation stack = ['{} <- {}']", id, id, String.join(" <- ", macroEvaluationStack));
+                    + " assume true; evaluation stack = ['{} <- {}']",
+                  id, id, String.join(" <- ", macroEvaluationStack));
         return BigInteger.ONE;
       }
       final String value = preprocessor.valueOf(id);

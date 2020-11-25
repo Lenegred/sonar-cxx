@@ -123,7 +123,7 @@ public class CxxPCLintSensorTest {
     CxxPCLintSensor sensor = new CxxPCLintSensor();
     sensor.execute(context);
 
-    assertThat(context.allIssues()).hasSize(0);
+    assertThat(context.allIssues()).isEmpty();
   }
 
   @Test
@@ -139,7 +139,7 @@ public class CxxPCLintSensorTest {
     var sensor = new CxxPCLintSensor();
     sensor.execute(context);
 
-    assertThat(context.allIssues()).hasSize(0);
+    assertThat(context.allIssues()).isEmpty();
   }
 
   @Test
@@ -208,16 +208,16 @@ public class CxxPCLintSensorTest {
     var sensor = new CxxPCLintSensor();
     sensor.execute(context);
 
-    assertThat(context.allIssues().size()).isEqualTo(2);
+    assertThat(context.allIssues()).hasSize(2);
 
     var allIssues = new ArrayList<Issue>(context.allIssues());
 
     Issue firstIssue = allIssues.get(0);
-    assertThat(firstIssue.flows().size()).isEqualTo(1);
-    assertThat(firstIssue.flows().get(0).locations().size()).isEqualTo(3);
+    assertThat(firstIssue.flows()).hasSize(1);
+    assertThat(firstIssue.flows().get(0).locations()).hasSize(3);
 
     Issue secondIssue = allIssues.get(1);
-    assertThat(secondIssue.flows().size()).isEqualTo(1);
-    assertThat(secondIssue.flows().get(0).locations().size()).isEqualTo(1);
+    assertThat(secondIssue.flows()).hasSize(1);
+    assertThat(secondIssue.flows().get(0).locations()).hasSize(1);
   }
 }

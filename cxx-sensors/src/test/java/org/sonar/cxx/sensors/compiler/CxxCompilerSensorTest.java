@@ -56,10 +56,10 @@ public class CxxCompilerSensorTest {
   @Test
   public void testFileNotFound() {
     var report = new File("");
-    sensor.setRegex("*");
+    sensor.setRegex("(?<test>.*)");
     sensor.testExecuteReport(report);
     String log = logTester.logs().toString();
-    assertThat(log.contains("FileNotFoundException")).isTrue();
+    assertThat(log).contains("FileNotFoundException");
   }
 
   @Test
@@ -67,16 +67,16 @@ public class CxxCompilerSensorTest {
     var report = new File("");
     sensor.testExecuteReport(report);
     String log = logTester.logs().toString();
-    assertThat(log.contains("empty custom regular expression")).isTrue();
+    assertThat(log).contains("empty custom regular expression");
   }
 
   @Test
   public void testRegexInvalid() {
     var report = new File(fs.baseDir(), "compiler-reports/VC-report.vclog");
-    sensor.setRegex("*");
+    sensor.setRegex("(?<test>*)");
     sensor.testExecuteReport(report);
     String log = logTester.logs().toString();
-    assertThat(log.contains("PatternSyntaxException")).isTrue();
+    assertThat(log).contains("PatternSyntaxException");
   }
 
   @Test
@@ -85,7 +85,7 @@ public class CxxCompilerSensorTest {
     sensor.setRegex(".*");
     sensor.testExecuteReport(report);
     String log = logTester.logs().toString();
-    assertThat(log.contains("No group with name")).isTrue();
+    assertThat(log).contains("contains no named-capturing group");
   }
 
   private class CxxCompilerSensorMock extends CxxCompilerSensor {

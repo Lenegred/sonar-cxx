@@ -37,7 +37,6 @@ import org.sonar.api.utils.log.Logger;
 import org.sonar.api.utils.log.Loggers;
 import org.sonar.cxx.sensors.utils.CxxIssuesReportSensor;
 import org.sonar.cxx.sensors.utils.InvalidReportException;
-import org.sonar.cxx.sensors.utils.ReportException;
 import org.sonar.cxx.utils.CxxReportIssue;
 
 /**
@@ -81,7 +80,7 @@ public class CxxRatsSensor extends CxxIssuesReportSensor {
   }
 
   @Override
-  protected void processReport(File report) throws ReportException {
+  protected void processReport(File report) {
     LOG.debug("Processing 'RATS' report '{}'", report.getName());
 
     try {
@@ -104,7 +103,7 @@ public class CxxRatsSensor extends CxxIssuesReportSensor {
           for (var lineElem : lines) {
             String line = lineElem.getTextTrim();
 
-            var issue = new CxxReportIssue(type, fileName, line, message);
+            var issue = new CxxReportIssue(type, fileName, line, null, message);
             saveUniqueViolation(issue);
           }
         }

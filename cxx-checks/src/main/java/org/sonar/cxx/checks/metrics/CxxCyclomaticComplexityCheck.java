@@ -111,12 +111,13 @@ public abstract class CxxCyclomaticComplexityCheck<G extends Grammar> extends Mu
     final int currentComplexity = scope.getComplexity();
     if (scope.getComplexity() > maxComplexity) {
       var msg = new StringBuilder(256);
-      msg.append("The Cyclomatic Complexity of this ").append(getScopeName()).append(" is ").append(currentComplexity)
+      msg.append("The Cyclomatic Complexity of this ")
+        .append(getScopeName()).append(" is ").append(currentComplexity)
         .append(" which is greater than ").append(maxComplexity).append(" authorized.");
 
-      var issue = new CxxReportIssue(getRuleKey(), null, scope.getStartingLine(), msg.toString());
+      var issue = new CxxReportIssue(getRuleKey(), null, scope.getStartingLine(), null, msg.toString());
       for (var source : scope.getSources()) {
-        issue.addLocation(null, source.getLine(), source.getExplanation());
+        issue.addLocation(null, source.getLine(), null, source.getExplanation());
       }
       createMultiLocationViolation(issue);
     }

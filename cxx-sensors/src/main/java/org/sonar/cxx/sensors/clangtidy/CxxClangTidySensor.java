@@ -35,7 +35,6 @@ import org.sonar.api.utils.log.Logger;
 import org.sonar.api.utils.log.Loggers;
 import org.sonar.cxx.sensors.utils.CxxIssuesReportSensor;
 import org.sonar.cxx.sensors.utils.InvalidReportException;
-import org.sonar.cxx.sensors.utils.ReportException;
 import org.sonar.cxx.utils.CxxReportIssue;
 
 /**
@@ -56,8 +55,9 @@ public class CxxClangTidySensor extends CxxIssuesReportSensor {
     return Collections.unmodifiableList(Arrays.asList(
       PropertyDefinition.builder(REPORT_PATH_KEY)
         .name("Clang-Tidy report(s)")
-        .description("Path to Clang-Tidy reports, relative to projects root. If neccessary, "
-                       + "<a href='https://ant.apache.org/manual/dirtasks.html'>Ant-style wildcards</a> are at your service.")
+        .description(
+          "Path to Clang-Tidy reports, relative to projects root. If neccessary, "
+          + "<a href='https://ant.apache.org/manual/dirtasks.html'>Ant-style wildcards</a> are at your service.")
         .category("CXX External Analyzers")
         .subCategory("Clang-Tidy")
         .onQualifiers(Qualifiers.PROJECT)
@@ -75,6 +75,31 @@ public class CxxClangTidySensor extends CxxIssuesReportSensor {
     ));
   }
 
+  /**
+   * Extract the rule id from info
+   *
+   * @param info text (with rule id)
+   * @param defaultRuleId rule id to use if info has no or invalid rule id
+   * @return sting array: ruleId, info
+   */
+  protected static String[] splitRuleId(String info, String defaultRuleId) {
+    String ruleId = defaultRuleId;
+
+    if (info.endsWith("]")) { // [ruleId]
+      for (var i = info.length() - 2; i >= 0; i--) {
+        char c = info.charAt(i);
+        if (!(Character.isLetterOrDigit(c) || c == '-' || c == '.' || c == '_')) {
+          if (c == '[') {
+            ruleId = info.substring(i + 1, info.length() - 1);
+            info = info.substring(0, i - 1);
+          }
+          break;
+        }
+      }
+    }
+    return new String[]{ruleId, info};
+  }
+
   @Override
   public void describe(SensorDescriptor descriptor) {
     descriptor
@@ -85,61 +110,67 @@ public class CxxClangTidySensor extends CxxIssuesReportSensor {
   }
 
   @Override
-  protected void processReport(File report) throws ReportException {
+  protected void processReport(File report)  {
     String reportCharset = context.config().get(REPORT_CHARSET_DEF).orElse(DEFAULT_CHARSET_DEF);
     LOG.debug("Processing 'Clang-Tidy' report '{}', CharSet= '{}'", report.getName(), reportCharset);
 
     try ( var scanner = new Scanner(report, reportCharset)) {
       // sample:
-      // E:\Development\SonarQube\cxx\sonar-cxx\sonar-cxx-plugin\src\test\resources\org\sonar\plugins\cxx\
-      //   reports-project\clang-tidy-reports\..\..\cpd.cc:76:20:
-      //   warning: ISO C++11 does not allow conversion from string literal to 'char *'
-      //   [clang-diagnostic-writable-strings]
-      CxxReportIssue issue = null;
+      // c:\a\file.cc:5:20: warning: ... conversion from string literal to 'char *' [clang-diagnostic-writable-strings]
+      CxxReportIssue currentIssue = null;
       while (scanner.hasNextLine()) {
         String nextLine = scanner.nextLine();
         final Matcher matcher = PATTERN.matcher(nextLine);
         if (matcher.matches()) {
           // group: 1      2      3         4        5
-          //      <path>:<line>:<column>: <level>: <txt>
+          //      <path>:<line>:<column>: <level>: <info>
           MatchResult m = matcher.toMatchResult();
           String path = m.group(1); // relative paths
           String line = m.group(2);
-          //String column = m.group(3);
+          String column = m.group(3);
           String level = m.group(4); // error, warning, note, ...
-          String txt = m.group(5); // info( [ruleId])?
-          String info = null;
-          String ruleId = null;
+          String info = m.group(5); // info [ruleId]
 
-          if (txt.endsWith("]")) { // [ruleId]
-            for (var i = txt.length() - 2; i >= 0; i--) {
-              char c = txt.charAt(i);
-              if (c == '[') {
-                info = txt.substring(0, i - 1);
-                ruleId = txt.substring(i + 1, txt.length() - 1);
-                break;
-              }
-              if (!(Character.isLetterOrDigit(c) || c == '-' || c == '.')) {
-                break;
-              }
-            }
-          }
-          if (info == null) {
-            info = txt;
-          }
+          CxxReportIssue newIssue = null;
+          Boolean saveIssue = true;
 
-          if (ruleId != null) {
-            if (issue != null) {
-              saveUniqueViolation(issue);
+          switch (level) {
+            case "note":
+              saveIssue = false;
+              if (currentIssue != null) {
+                currentIssue.addFlowElement(path, line, column, info);
+              }
+              break;
+            case "warning": {
+              String [] rule = splitRuleId(info, "clang-diagnostic-warning");
+              newIssue = new CxxReportIssue(rule[0], path, line, column, rule[1]);
             }
-            issue = new CxxReportIssue(ruleId, path, line, info);
-          } else if ((issue != null) && "note".equals(level)) {
-            issue.addFlowElement(path, line, info);
+              break;
+            case "error":
+            case "fatal error": {
+              String [] rule = splitRuleId(info, "clang-diagnostic-error");
+              newIssue = new CxxReportIssue(rule[0], path, line, column, rule[1]);
+            }
+              break;
+            default: {
+              String [] rule = splitRuleId(info, "clang-diagnostic-unknown");
+              newIssue = new CxxReportIssue(rule[0], path, line, column, rule[1]);
+            }
+              break;
+          }
+          if (saveIssue) {
+            if (currentIssue != null) {
+              saveUniqueViolation(currentIssue);
+              currentIssue = null;
+            }
+            currentIssue = newIssue;
+            newIssue = null;
           }
         }
       }
-      if (issue != null) {
-        saveUniqueViolation(issue);
+      if (currentIssue != null) {
+        saveUniqueViolation(currentIssue);
+        currentIssue = null;
       }
     } catch (final java.io.FileNotFoundException
                      | java.lang.IllegalArgumentException

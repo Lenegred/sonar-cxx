@@ -39,7 +39,6 @@ import org.sonar.cxx.sensors.utils.CxxIssuesReportSensor;
 import org.sonar.cxx.sensors.utils.CxxUtils;
 import org.sonar.cxx.sensors.utils.EmptyReportException;
 import org.sonar.cxx.sensors.utils.InvalidReportException;
-import org.sonar.cxx.sensors.utils.ReportException;
 import org.sonar.cxx.sensors.utils.StaxParser;
 import org.sonar.cxx.utils.CxxReportIssue;
 import org.sonar.cxx.utils.CxxReportLocation;
@@ -91,7 +90,7 @@ public class CxxPCLintSensor extends CxxIssuesReportSensor {
   }
 
   @Override
-  protected void processReport(File report) throws ReportException {
+  protected void processReport(File report) {
     LOG.debug("Processing 'PC-Lint' report '{}'", report.getName());
 
     var parser = new StaxParser(new StaxParser.XmlStreamHandler() {
@@ -144,7 +143,7 @@ public class CxxPCLintSensor extends CxxIssuesReportSensor {
                 saveUniqueViolation(currentIssue);
               }
 
-              currentIssue = new CxxReportIssue(id, file, line, msg);
+              currentIssue = new CxxReportIssue(id, file, line, null, msg);
             } else {
               LOG.warn("PC-lint warning ignored: {}", msg);
               LOG.debug("File: {}, Line: {}, ID: {}, msg: {}", file, line, id, msg);
@@ -188,7 +187,7 @@ public class CxxPCLintSensor extends CxxIssuesReportSensor {
         // the UI is not ready. For this case, use the parent issue's file and line for now.
         CxxReportLocation primaryLocation = currentIssue.getLocations().get(0);
         if (!primaryLocation.getFile().equals(file)) {
-          if (!msg.startsWith(PREFIX_DURING_SPECIFIC_WALK_MSG)) {
+          if (msg != null && !msg.startsWith(PREFIX_DURING_SPECIFIC_WALK_MSG)) {
             msg = String.format("%s %s:%s %s", PREFIX_DURING_SPECIFIC_WALK_MSG, file, line, msg);
           }
 
@@ -196,7 +195,7 @@ public class CxxPCLintSensor extends CxxIssuesReportSensor {
           line = primaryLocation.getLine();
         }
 
-        currentIssue.addFlowElement(file, line, msg);
+        currentIssue.addFlowElement(file, line, null, msg);
       }
 
       private boolean isInputValid(@Nullable String file, @Nullable String line,
